@@ -1,8 +1,5 @@
 package com.inventory.ims.config;
 
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
-import io.github.bucket4j.Refill;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,32 +8,44 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class RateLimitingFilter extends OncePerRequestFilter {
 
-    private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RateLimitInfo> rateLimitMap = new ConcurrentHashMap<>();
+    private final int maxRequests = 100;
+    private final int windowMinutes = 1;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
         String clientIp = getClientIP(request);
-        Bucket bucket = buckets.computeIfAbsent(clientIp, this::createNewBucket);
-
-        if (bucket.tryConsume(1)) {
-            filterChain.doFilter(request, response);
-        } else {
+        
+        if (isRateLimited(clientIp)) {
             response.setStatus(429);
+            response.setContentType("application/json");
             response.getWriter().write("{\"error\":\"Too many requests\"}");
+            return;
         }
+
+        filterChain.doFilter(request, response);
     }
 
-    private Bucket createNewBucket(String key) {
-        Bandwidth limit = Bandwidth.classic(100, Refill.intervally(100, Duration.ofMinutes(1)));
-        return Bucket.builder().addLimit(limit).build();
+    private boolean isRateLimited(String clientIp) {
+        LocalDateTime now = LocalDateTime.now();
+        RateLimitInfo info = rateLimitMap.computeIfAbsent(clientIp, k -> new RateLimitInfo());
+        
+        // Reset if window expired
+        if (info.windowStart.plusMinutes(windowMinutes).isBefore(now)) {
+            info.requestCount = 0;
+            info.windowStart = now;
+        }
+        
+        info.requestCount++;
+        return info.requestCount > maxRequests;
     }
 
     private String getClientIP(HttpServletRequest request) {
@@ -45,5 +54,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return request.getRemoteAddr();
         }
         return xfHeader.split(",")[0];
+    }
+
+    private static class RateLimitInfo {
+        int requestCount = 0;
+        LocalDateTime windowStart = LocalDateTime.now();
     }
 }
