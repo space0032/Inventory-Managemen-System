@@ -7,37 +7,43 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(name = "products")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class Product {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String username;
+    @Column(nullable = false, length = 100)
+    private String name;
 
-    @Column(nullable = false, unique = true, length = 100)
-    private String email;
+    @Column(unique = true, nullable = false, length = 50)
+    private String sku;
+
+    @Column(length = 500)
+    private String description;
+
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal price;
 
     @Column(nullable = false)
-    private String password;
+    private Integer quantity = 0;
 
-    @Column(name = "full_name", length = 100)
-    private String fullName;
+    @Column(name = "min_stock_level")
+    private Integer minStockLevel = 0;
 
-    @Column(length = 20)
-    private String phone;
+    @Column(length = 100)
+    private String category;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "role_id")
-    private Role role;
+    @Column(length = 100)
+    private String supplier;
 
     @Column(name = "is_active")
     private Boolean isActive = true;

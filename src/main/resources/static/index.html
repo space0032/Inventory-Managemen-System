@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { background: #007bff; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .auth-section { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; }
+        .stat-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #007bff; }
+        input, button { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .message { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .hidden { display: none; }
+        .nav-buttons { display: flex; gap: 10px; margin: 10px 0; }
+        .nav-buttons button { width: auto; padding: 8px 16px; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .table th, .table td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        .table th { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏪 Inventory Management System</h1>
+            <p>Complete inventory and user management solution</p>
+        </div>
+        
+        <div id="auth-section">
+            <div class="auth-section">
+                <h2>Login</h2>
+                <form id="loginForm">
+                    <input type="text" id="loginUsername" placeholder="Username" required>
+                    <input type="password" id="loginPassword" placeholder="Password" required>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+
+            <div class="auth-section">
+                <h2>Register</h2>
+                <form id="registerForm">
+                    <input type="text" id="regUsername" placeholder="Username" required>
+                    <input type="email" id="regEmail" placeholder="Email" required>
+                    <input type="password" id="regPassword" placeholder="Password" required>
+                    <input type="text" id="regFullName" placeholder="Full Name" required>
+                    <input type="text" id="regPhone" placeholder="Phone">
+                    <button type="submit">Register</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="dashboard-section" class="hidden">
+            <div class="card">
+                <h2>Welcome, <span id="currentUser"></span>!</h2>
+                <p>Role: <span id="currentRole"></span></p>
+                <div class="nav-buttons">
+                    <button onclick="showDashboard()">Dashboard</button>
+                    <button onclick="showProducts()">Products</button>
+                    <button onclick="showUsers()" id="usersBtn" class="hidden">Users</button>
+                    <button onclick="showReports()" id="reportsBtn" class="hidden">Reports</button>
+                    <button onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <div id="dashboard-content">
+                <div class="card">
+                    <h3>📊 Dashboard Statistics</h3>
+                    <div class="stats" id="dashboardStats">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalProducts">-</div>
+                            <div>Total Products</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalUsers">-</div>
+                            <div>Total Users</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalOrders">-</div>
+                            <div>Total Orders</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="lowStockProducts">-</div>
+                            <div>Low Stock Items</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="products-content" class="hidden">
+                <div class="card">
+                    <h3>📦 Products Management</h3>
+                    <button onclick="loadProducts()">Refresh Products</button>
+                    <div id="productsList"></div>
+                </div>
+            </div>
+
+            <div id="users-content" class="hidden">
+                <div class="card">
+                    <h3>👥 Users Management</h3>
+                    <button onclick="loadUsers()">Refresh Users</button>
+                    <div id="usersList"></div>
+                </div>
+            </div>
+
+            <div id="reports-content" class="hidden">
+                <div class="card">
+                    <h3>📈 Reports & Analytics</h3>
+                    <button onclick="loadReports()">Load Reports</button>
+                    <div id="reportsList"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        let authToken = localStorage.getItem('authToken');
+        let currentUserRole = localStorage.getItem('role');
+
+        if (authToken) {
+            showDashboard();
+        }
+
+        // Login form handler
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    localStorage.setItem('authToken', data.data.token);
+                    localStorage.setItem('username', data.data.username);
+                    localStorage.setItem('role', data.data.role);
+                    authToken = data.data.token;
+                    currentUserRole = data.data.role;
+                    showMessage('Login successful!', 'success');
+                    showDashboard();
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Login failed: ' + error.message, 'error');
+            }
+        });
+
+        // Register form handler
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userData = {
+                username: document.getElementById('regUsername').value,
+                email: document.getElementById('regEmail').value,
+                password: document.getElementById('regPassword').value,
+                fullName: document.getElementById('regFullName').value,
+                phone: document.getElementById('regPhone').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Registration successful! Please login.', 'success');
+                    document.getElementById('registerForm').reset();
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Registration failed: ' + error.message, 'error');
+            }
+        });
+
+        function showDashboard() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            document.getElementById('currentUser').textContent = localStorage.getItem('username');
+            document.getElementById('currentRole').textContent = localStorage.getItem('role');
+            
+            // Show admin/manager buttons
+            if (currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER') {
+                document.getElementById('usersBtn').classList.remove('hidden');
+                document.getElementById('reportsBtn').classList.remove('hidden');
+            }
+            
+            hideAllContent();
+            document.getElementById('dashboard-content').classList.remove('hidden');
+            loadDashboardStats();
+        }
+
+        function hideAllContent() {
+            document.getElementById('dashboard-content').classList.add('hidden');
+            document.getElementById('products-content').classList.add('hidden');
+            document.getElementById('users-content').classList.add('hidden');
+            document.getElementById('reports-content').classList.add('hidden');
+        }
+
+        function showProducts() {
+            hideAllContent();
+            document.getElementById('products-content').classList.remove('hidden');
+            loadProducts();
+        }
+
+        function showUsers() {
+            hideAllContent();
+            document.getElementById('users-content').classList.remove('hidden');
+            loadUsers();
+        }
+
+        function showReports() {
+            hideAllContent();
+            document.getElementById('reports-content').classList.remove('hidden');
+            loadReports();
+        }
+
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch(`${API_BASE}/reports/dashboard`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('totalProducts').textContent = data.data.totalProducts || 0;
+                    document.getElementById('totalUsers').textContent = data.data.totalUsers || 0;
+                    document.getElementById('totalOrders').textContent = data.data.totalOrders || 0;
+                    document.getElementById('lowStockProducts').textContent = data.data.lowStockProducts || 0;
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard stats:', error);
+            }
+        }
+
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_BASE}/products`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayProducts(data.data);
+                }
+            } catch (error) {
+                showMessage('Failed to load products', 'error');
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_BASE}/users`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayUsers(data.data);
+                }
+            } catch (error) {
+                showMessage('Failed to load users', 'error');
+            }
+        }
+
+        async function loadReports() {
+            try {
+                const response = await fetch(`${API_BASE}/reports/inventory`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayReports(data.data);
+                }
+            } catch (error) {
+                showMessage('Failed to load reports', 'error');
+            }
+        }
+
+        function displayProducts(products) {
+            const container = document.getElementById('productsList');
+            if (!products || products.length === 0) {
+                container.innerHTML = '<p>No products found.</p>';
+                return;
+            }
+            
+            let html = '<table class="table"><tr><th>Name</th><th>SKU</th><th>Price</th><th>Quantity</th><th>Category</th></tr>';
+            products.forEach(product => {
+                html += `<tr>
+                    <td>${product.name}</td>
+                    <td>${product.sku}</td>
+                    <td>$${product.price}</td>
+                    <td>${product.quantity}</td>
+                    <td>${product.category || 'N/A'}</td>
+                </tr>`;
+            });
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        function displayUsers(users) {
+            const container = document.getElementById('usersList');
+            if (!users || users.length === 0) {
+                container.innerHTML = '<p>No users found.</p>';
+                return;
+            }
+            
+            let html = '<table class="table"><tr><th>Username</th><th>Email</th><th>Full Name</th><th>Role</th><th>Status</th></tr>';
+            users.forEach(user => {
+                html += `<tr>
+                    <td>${user.username}</td>
+                    <td>${user.email}</td>
+                    <td>${user.fullName}</td>
+                    <td>${user.roleName}</td>
+                    <td>${user.isActive ? 'Active' : 'Inactive'}</td>
+                </tr>`;
+            });
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        function displayReports(report) {
+            const container = document.getElementById('reportsList');
+            let html = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number">${report.totalProducts || 0}</div>
+                        <div>Total Products</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${report.activeProducts || 0}</div>
+                        <div>Active Products</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">$${report.totalInventoryValue || 0}</div>
+                        <div>Inventory Value</div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('username');
+            localStorage.removeItem('role');
+            authToken = null;
+            currentUserRole = null;
+            document.getElementById('auth-section').classList.remove('hidden');
+            document.getElementById('dashboard-section').classList.add('hidden');
+            showMessage('Logged out successfully', 'success');
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = `message ${type}`;
+            setTimeout(() => messageDiv.textContent = '', 5000);
+        }
+    </script>
+</body>
+</html>

@@ -17,6 +17,11 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
+    @GetMapping("/test")
+    public ResponseEntity<ApiResponse> test() {
+        return ResponseEntity.ok(new ApiResponse(true, "Auth controller is working"));
+    }
+
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> register(@Valid @RequestBody RegisterRequest request) {
         try {
